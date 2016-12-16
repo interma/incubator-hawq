@@ -74,6 +74,8 @@ public:
      */
     const char * getClientName();
 
+    EncryptionKey getEncryptionKeys();
+
     /**
      * Connect to hdfs
      */
@@ -241,6 +243,16 @@ public:
      * false if client needs to wait for block recovery.
      */
     bool truncate(const char * path, int64_t size);
+
+    /**
+     * Get a valid KMS Token.
+     *
+     * @return Token
+     * @throws IOException
+     */
+    std::string getKmsToken();
+
+
 
     /**
      * Get a valid Delegation Token.
@@ -437,7 +449,7 @@ public:
      * Get the configuration used in filesystem.
      * @return return the configuration instance.
      */
-    const SessionConfig & getConf() const {
+    SessionConfig & getConf()  {
         return sconf;
     }
 

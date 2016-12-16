@@ -34,6 +34,8 @@
 #include "server/Namenode.h"
 #include "SessionConfig.h"
 #include "Thread.h"
+#include "DataTransferProtocolSender.h"
+#include "server/FileEncryption.h"
 
 #include <vector>
 #include <deque>
@@ -124,10 +126,10 @@ public:
     /**
      * construct and setup the pipeline for append.
      */
-    PipelineImpl(bool append, const char * path, const SessionConfig & conf,
+    PipelineImpl(bool append, const char * path, SessionConfig & conf,
                  shared_ptr<FileSystemInter> filesystem, int checksumType, int chunkSize,
                  int replication, int64_t bytesSent, PacketPool & packetPool,
-                 shared_ptr<LocatedBlock> lastBlock);
+                 shared_ptr<LocatedBlock> lastBlock, FileEncryption & encryption);
 
     /**
      * send all data and wait for all ack.
@@ -166,8 +168,10 @@ private:
     static void checkBadLinkFormat(const std::string & node);
 
 private:
+    SessionConfig & config;
     BlockConstructionStage stage;
     bool canAddDatanode;
+    bool canAddDatanodeBest;
     int blockWriteRetry;
     int checksumType;
     int chunkSize;
@@ -180,6 +184,7 @@ private:
     int64_t bytesSent; //the size of bytes has sent.
     PacketPool & packetPool;
     shared_ptr<BufferedSocketReader> reader;
+    shared_ptr<DataTransferProtocolSender> sender;
     shared_ptr<FileSystemInter> filesystem;
     shared_ptr<LocatedBlock> lastBlock;
     shared_ptr<Socket> sock;
@@ -188,6 +193,7 @@ private:
     std::string path;
     std::vector<DatanodeInfo> nodes;
     std::vector<std::string> storageIDs;
+    FileEncryption & encryption;
 
 };
 

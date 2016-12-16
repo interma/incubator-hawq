@@ -19,31 +19,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "Permission.h"
+#ifndef _HDFS_LIBHDFS3_SERVER_DATAREADER_H_
+#define _HDFS_LIBHDFS3_SERVER_DATAREADER_H_
 
-#include "Exception.h"
-#include "ExceptionInternal.h"
-
+#include <string>
+#include <vector>
 namespace Hdfs {
+namespace Internal {
 
-#define ACL_BIT (1 << 12)
-#define ENCRYPTED_BIT (1 << 13)
-
-
-Permission::Permission(uint16_t mode) {
-    if (mode >> 14) {
-        THROW(InvalidParameter,
-              "Invalid parameter: cannot convert %u to \"Permission\"",
-              static_cast<unsigned int>(mode));
+/**
+ * Helps read data responses from the server
+ */
+class DataReader {
+public:
+    DataReader(DataTransferProtocol *sender,
+            shared_ptr<BufferedSocketReader> reader, int readTimeout);
+    std::vector<char>& readResponse(const char* text, int &outsize);
+    std::vector<char>& readPacketHeader(const char* text, int size, int &outsize);
+    std::string& getRest() {
+        return rest;
     }
 
-    userAction = (Action)((mode >> 6) & 7);
-    groupAction = (Action)((mode >> 3) & 7);
-    otherAction = (Action)(mode & 7);
-    stickyBit = (((mode >> 9) & 1) == 1);
-    hasAcl = (mode & ACL_BIT) != 0;
-    isEncrypted = (mode & ENCRYPTED_BIT) != 0;
+    void setRest(const char* data, int size);
+    void reduceRest(int size);
+    void getMissing(int size);
+
+private:
+    std::string raw;
+    std::string decrypted;
+    std::string rest;
+    std::vector<char> buf;
+    DataTransferProtocol *sender;
+    shared_ptr<BufferedSocketReader> reader;
+    int readTimeout;
+};
 
 }
-
 }
+
+#endif /* _HDFS_LIBHDFS3_SERVER_DATAREADER_H_ */

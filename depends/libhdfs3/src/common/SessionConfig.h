@@ -98,6 +98,34 @@ public:
         return defaultBlockSize;
     }
 
+    bool getEncryptedDatanode() const {
+        return encryptedDatanode;
+    }
+
+    bool getSecureDatanode() const {
+        return secureDatanode;
+    }
+
+    void setSecureDatanode(bool val) {
+        secureDatanode = val;
+    }
+
+    const std::string& getKmsUrl() const {
+        return kmsUrl;
+    }
+
+    const std::string& getKmsMethod() const {
+        return kmsAuthMethod;
+    }
+
+    const std::string& getKmsToken() const {
+        return kmsAuthToken;
+    }
+
+    int32_t getCryptoBufferSize() const {
+        return cryptoBufferSize;
+    }
+
     /*
      * InputStream configure
      */
@@ -168,6 +196,10 @@ public:
 
     bool canAddDatanode() const {
         return addDatanode;
+    }
+
+    bool canAddDatanodeBest() const {
+        return addDatanodeBest;
     }
 
     int32_t getHeartBeatInterval() const {
@@ -325,6 +357,12 @@ public:
     std::string logSeverity;
     int32_t defaultReplica;
     int64_t defaultBlockSize;
+    bool encryptedDatanode;
+    bool secureDatanode;
+    int32_t cryptoBufferSize;
+    std::string kmsUrl;
+    std::string kmsAuthMethod;
+    std::string kmsAuthToken;
 
     /*
      * InputStream configure
@@ -350,6 +388,7 @@ public:
      * OutputStream configure
      */
     bool addDatanode;
+    bool addDatanodeBest;
     int32_t chunkSize;
     int32_t packetSize;
     int32_t blockWriteRetry; //retry on block not replicated yet.

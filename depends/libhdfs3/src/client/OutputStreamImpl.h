@@ -38,6 +38,7 @@
 #ifdef MOCK
 #include "PipelineStub.h"
 #endif
+#include "rpc/SaslClient.h"
 
 namespace Hdfs {
 namespace Internal {
@@ -152,6 +153,8 @@ private:
     std::string path;
     std::vector<char> buffer;
     steady_clock::time_point lastSend;
+    FileStatus fileStatus;
+    shared_ptr<AESClient> aesClient;
     //thread heartBeatSender;
 
     friend class Pipeline;

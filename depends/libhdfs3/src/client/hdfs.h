@@ -148,7 +148,7 @@ hdfsFS hdfsConnectNewInstance(const char * nn, tPort port);
  * @param bld    The HDFS builder
  * @return       Returns a handle to the filesystem, or NULL on error.
  */
-hdfsFS hdfsBuilderConnect(struct hdfsBuilder * bld);
+hdfsFS hdfsBuilderConnect(struct hdfsBuilder * bld, const char * effective_user=NULL);
 
 /**
  * Create an HDFS builder.
@@ -473,6 +473,16 @@ int hdfsSetWorkingDirectory(hdfsFS fs, const char * path);
 int hdfsCreateDirectory(hdfsFS fs, const char * path);
 
 /**
+ * hdfsCreateDirectoryEx - Make the given file with extended options
+ * @param fs The configured filesystem handle.
+ * @param path The path of the directory.
+ * @param mode The permissions for created file and directories.
+ * @param createParents Controls whether to create all non-existent parent directories or not
+ * @return Returns 0 on success, -1 on error.
+ */
+int hdfsCreateDirectoryEx(hdfsFS fs, const char * path, short mode, int createParents);
+
+/**
  * hdfsSetReplication - Set the replication of the specified
  * file to the supplied value
  * @param fs The configured filesystem handle.
@@ -616,6 +626,24 @@ int hdfsUtime(hdfsFS fs, const char * path, tTime mtime, tTime atime);
 int hdfsTruncate(hdfsFS fs, const char * path, tOffset pos, int * shouldWait);
 
 /**
+ * Get a delegation token from KMS.
+ * The token should be freed using hdfsFreeKmsToken after canceling the token or token expired.
+ *
+ * @param fs The file system
+ *
+ * @return Return a kms token, NULL on error.
+ */
+char * hdfsGetKmsToken(hdfsFS fs);
+
+
+/**
+ * Free a kms token.
+ *
+ * @param token The token to be freed.
+ */
+void hdfsFreeKmsToken(char * token);
+
+/**
  * Get a delegation token from namenode.
  * The token should be freed using hdfsFreeDelegationToken after canceling the token or token expired.
  *
@@ -654,7 +682,7 @@ int64_t hdfsRenewDelegationToken(hdfsFS fs, const char * token);
 int hdfsCancelDelegationToken(hdfsFS fs, const char * token);
 
 typedef struct Namenode {
-    char * rpc_addr;    // namenode rpc address and port, such as "host:8020"
+    char * rpc_addr;    // namenode rpc address and port, such as "host:9000"
     char * http_addr;   // namenode http address and port, such as "host:50070"
 } Namenode;
 

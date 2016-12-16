@@ -403,7 +403,7 @@ hdfsFS hdfsConnectNewInstance(const char * host, tPort port) {
     return retVal;
 }
 
-hdfsFS hdfsBuilderConnect(struct hdfsBuilder * bld) {
+hdfsFS hdfsBuilderConnect(struct hdfsBuilder * bld, const char * effective_user) {
     PARAMETER_ASSERT(bld && !bld->nn.empty(), NULL, EINVAL);
     Hdfs::Internal::SessionConfig conf(*bld->conf);
     std::string uri;
@@ -475,7 +475,7 @@ hdfsFS hdfsBuilderConnect(struct hdfsBuilder * bld) {
     xmlFreeURI(uriobj);
 
     try {
-        fs = new FileSystem(*bld->conf);
+        fs = new FileSystem(*bld->conf, effective_user);
 
         if (!bld->token.empty()) {
             fs->connect(uri.c_str(), NULL, bld->token.c_str());
@@ -646,7 +646,7 @@ hdfsFile hdfsOpenFile(hdfsFS fs, const char * path, int flags, int bufferSize,
         if ((flags & O_CREAT) || (flags & O_APPEND) || (flags & O_WRONLY)) {
             int internalFlags = 0;
 
-            if (flags & O_CREAT)  {
+            if (flags & O_CREAT) {
                 internalFlags |= Hdfs::Create;
             } else if ((flags & O_APPEND) && (flags & O_WRONLY)) {
                 internalFlags |= Hdfs::Create;
@@ -722,7 +722,7 @@ int hdfsExists(hdfsFS fs, const char * path) {
     PARAMETER_ASSERT(fs && path && strlen(path) > 0, -1, EINVAL);
 
     try {
-        return fs->getFilesystem().exist(path) ? 0 : -1;
+        return fs->getFilesystem().exist(path) ? 1 : 0;
     } catch (const std::bad_alloc & e) {
         SetErrorMessage("Out of memory");
         errno = ENOMEM;
@@ -892,7 +892,7 @@ int hdfsDelete(hdfsFS fs, const char * path, int recursive) {
     PARAMETER_ASSERT(fs && path && strlen(path) > 0, -1, EINVAL);
 
     try {
-        return fs->getFilesystem().deletePath(path, recursive) ? 0 : -1;
+        return fs->getFilesystem().deletePath(path, recursive) ? 1 : 0;
     } catch (const std::bad_alloc & e) {
         SetErrorMessage("Out of memory");
         errno = ENOMEM;
@@ -909,7 +909,7 @@ int hdfsRename(hdfsFS fs, const char * oldPath, const char * newPath) {
     PARAMETER_ASSERT(newPath && strlen(newPath) > 0, -1, EINVAL);
 
     try {
-        return fs->getFilesystem().rename(oldPath, newPath) ? 0 : -1;
+        return fs->getFilesystem().rename(oldPath, newPath) ? 1 : 0;
     } catch (const std::bad_alloc & e) {
         SetErrorMessage("Out of memory");
         errno = ENOMEM;
@@ -961,7 +961,26 @@ int hdfsCreateDirectory(hdfsFS fs, const char * path) {
     PARAMETER_ASSERT(fs && path && strlen(path) > 0, -1, EINVAL);
 
     try {
-        return fs->getFilesystem().mkdirs(path, 0755) ? 0 : -1;
+        return fs->getFilesystem().mkdirs(path, 0755) ? 1 : 0;
+    } catch (const std::bad_alloc & e) {
+        SetErrorMessage("Out of memory");
+        errno = ENOMEM;
+    } catch (...) {
+        SetLastException(Hdfs::current_exception());
+        handleException(Hdfs::current_exception());
+    }
+
+    return -1;
+}
+
+int hdfsCreateDirectoryEx(hdfsFS fs, const char * path, short mode, int createParents) {
+    PARAMETER_ASSERT(fs && path && strlen(path) > 0, -1, EINVAL);
+
+    try {
+        if (createParents)
+            return fs->getFilesystem().mkdirs(path, mode) ? 1 : 0;
+        else
+            return fs->getFilesystem().mkdir(path, mode) ? 1 : 0;
     } catch (const std::bad_alloc & e) {
         SetErrorMessage("Out of memory");
         errno = ENOMEM;
@@ -977,7 +996,7 @@ int hdfsSetReplication(hdfsFS fs, const char * path, int16_t replication) {
     PARAMETER_ASSERT(fs && path && strlen(path) > 0 && replication > 0, -1, EINVAL);
 
     try {
-        return fs->getFilesystem().setReplication(path, replication) ? 0 : -1;
+        return fs->getFilesystem().setReplication(path, replication) ? 1 : 0;
     } catch (const std::bad_alloc & e) {
         SetErrorMessage("Out of memory");
         errno = ENOMEM;
@@ -1242,6 +1261,32 @@ int hdfsTruncate(hdfsFS fs, const char * path, tOffset pos, int * shouldWait) {
 
     return -1;
 }
+
+char * hdfsGetKmsToken(hdfsFS fs) {
+    PARAMETER_ASSERT(fs, NULL, EINVAL);
+
+    try {
+        std::string token = fs->getFilesystem().getKmsToken();
+        return Strdup(token.c_str());
+    } catch (const std::bad_alloc & e) {
+        SetErrorMessage("Out of memory");
+        errno = ENOMEM;
+    } catch (...) {
+        SetLastException(Hdfs::current_exception());
+        handleException(Hdfs::current_exception());
+    }
+
+    return NULL;
+}
+
+void hdfsFreeKmsToken(char * token) {
+    if (!token) {
+        return;
+    }
+
+    delete token;
+}
+
 
 char * hdfsGetDelegationToken(hdfsFS fs, const char * renewer) {
     PARAMETER_ASSERT(fs && renewer && strlen(renewer) > 0, NULL, EINVAL);

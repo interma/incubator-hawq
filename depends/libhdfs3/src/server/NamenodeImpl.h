@@ -218,6 +218,8 @@ public:
     void cancelDelegationToken(const Token & token)
     /*throws IOException*/;
 
+    EncryptionKey getEncryptionKeys();
+
 private:
     void invoke(const RpcCall & call);
 

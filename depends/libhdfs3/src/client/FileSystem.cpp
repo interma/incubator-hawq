@@ -139,6 +139,14 @@ FileSystem::FileSystem(const Config & conf) :
     conf(conf), impl(NULL) {
 }
 
+FileSystem::FileSystem(const Config & conf, const char * euser) :
+    conf(conf), impl(NULL) {
+        if (euser == NULL)
+            effective_user = "";
+        else
+            effective_user = euser;
+}
+
 FileSystem::FileSystem(const FileSystem & other) :
     conf(other.conf), impl(NULL) {
     if (other.impl) {
@@ -152,6 +160,7 @@ FileSystem & FileSystem::operator =(const FileSystem & other) {
     }
 
     conf = other.conf;
+    effective_user = other.effective_user;
 
     if (impl) {
         delete impl;
@@ -174,6 +183,12 @@ FileSystem::~FileSystem() {
     }
 }
 
+EncryptionKey FileSystem::getEncryptionKeys() {
+    if (impl)
+        return impl->filesystem->getEncryptionKeys();
+    return EncryptionKey();
+}
+
 void FileSystem::connect() {
     Internal::SessionConfig sconf(conf);
     connect(sconf.getDefaultUri().c_str(), NULL, NULL);
@@ -188,17 +203,25 @@ void FileSystem::connect(const char * uri) {
 }
 
 static FileSystemWrapper * ConnectInternal(const char * uri,
-        const std::string & principal, const Token * token, Config & conf) {
+        const std::string & principal, const Token * token, Config & conf,
+        const char * effective_user=NULL) {
     if (NULL == uri || 0 == strlen(uri)) {
         THROW(InvalidParameter, "Invalid HDFS uri.");
     }
 
-    FileSystemKey key(uri, principal.c_str());
+    FileSystemKey key(uri, principal.c_str(), effective_user);
 
     if (token) {
         key.addToken(*token);
     }
-
+    SessionConfig sconf(conf);
+    AuthMethod auth = RpcAuth::ParseMethod(sconf.getKmsMethod());
+    const std::string &kmstoken = sconf.getKmsToken();
+    if (auth != AuthMethod::SIMPLE && kmstoken.length() > 0) {
+        Token t;
+        t.setKmsToken(kmstoken);
+        key.addToken(t);
+    }
     return new FileSystemWrapper(shared_ptr<FileSystemInter>(new FileSystemImpl(key, conf)));
 }
 
@@ -225,7 +248,10 @@ void FileSystem::connect(const char * uri, const char * username, const char * t
             Token t;
             t.fromString(token);
             principal = ExtractPrincipalFromToken(t);
-            impl = ConnectInternal(uri, principal, &t, conf);
+            const char * euser = NULL;
+            if (!effective_user.empty())
+                euser = effective_user.c_str();
+            impl = ConnectInternal(uri, principal, &t, conf, euser);
             impl->filesystem->connect();
             return;
         } else if (username) {
@@ -235,8 +261,10 @@ void FileSystem::connect(const char * uri, const char * username, const char * t
         if (auth == AuthMethod::KERBEROS) {
             principal = ExtractPrincipalFromTicketCache(sconf.getKerberosCachePath());
         }
-
-        impl = ConnectInternal(uri, principal, NULL, conf);
+        const char * euser = NULL;
+        if (!effective_user.empty())
+            euser = effective_user.c_str();
+        impl = ConnectInternal(uri, principal, NULL, conf, euser);
         impl->filesystem->connect();
     } catch (...) {
         delete impl;
@@ -529,6 +557,14 @@ bool FileSystem::truncate(const char * src, int64_t size) {
     }
 
     return impl->filesystem->truncate(src, size);
+}
+
+std::string FileSystem::getKmsToken() {
+    if (!impl) {
+        THROW(HdfsIOException, "FileSystem: not connected.");
+    }
+
+    return impl->filesystem->getKmsToken();
 }
 
 std::string FileSystem::getDelegationToken(const char * renewer) {

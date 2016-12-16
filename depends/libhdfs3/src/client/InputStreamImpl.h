@@ -37,6 +37,7 @@
 #include "server/LocatedBlocks.h"
 #include "SessionConfig.h"
 #include "Unordered.h"
+#include "rpc/SaslClient.h"
 
 #ifdef MOCK
 #include "TestDatanodeStub.h"
@@ -141,6 +142,7 @@ private:
     std::string path;
     std::vector<DatanodeInfo> failedNodes;
     std::vector<char> localReaderBuffer;
+    shared_ptr<AESClient> aesClient;
 
 #ifdef MOCK
 private:

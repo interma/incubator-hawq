@@ -201,19 +201,32 @@ int64_t InputStreamImpl::readBlockLength(const LocatedBlock & b) {
 }
 
 /**
- * Getting blocks locations'information from namenode
+ * Getting blocks locations' information from namenode
  */
 void InputStreamImpl::updateBlockInfos() {
     int retry = maxGetBlockInfoRetry;
 
+    bool initedLbs = false;
     for (int i = 0; i < retry; ++i) {
         try {
             if (!lbs) {
                 lbs = shared_ptr < LocatedBlocksImpl > (new LocatedBlocksImpl);
+                initedLbs = true;
             }
 
             filesystem->getBlockLocations(path, cursor, prefetchSize, *lbs);
-
+            if (initedLbs) {
+                  if (!aesClient && lbs->getEncryption().getKey().length() > 0) {
+                    FileEncryption& encryption = lbs->getEncryption();
+                    RpcAuth auth = RpcAuth(filesystem->getUserInfo(),
+                        RpcAuth::ParseMethod(conf->getKmsMethod()));
+                    shared_ptr<GetDecryptedKey> getter = shared_ptr <GetDecryptedKey>(GetDecryptedKey::getDecryptor(conf->getKmsUrl(), auth));
+                    std::string newkey = getter->getMaterial(encryption);
+                    encryption.setKey(newkey);
+                    aesClient = shared_ptr<AESClient>(new AESClient(newkey, encryption.getIv(),
+                          newkey, encryption.getIv(), conf->getCryptoBufferSize()));
+                }
+            }
             if (lbs->isLastBlockComplete()) {
                 lastBlockBeingWrittenLength = 0;
             } else {
@@ -349,9 +362,10 @@ void InputStreamImpl::setupBlockReader(bool temporaryDisableLocalRead) {
 
                 shared_ptr<ReadShortCircuitInfo> info;
                 ReadShortCircuitInfoBuilder builder(curNode, auth, *conf);
+                EncryptionKey ekey = filesystem->getEncryptionKeys();
 
                 try {
-                    info = builder.fetchOrCreate(*curBlock, curBlock->getToken());
+                    info = builder.fetchOrCreate(*curBlock, curBlock->getToken(), ekey);
 
                     if (!info) {
                         continue;
@@ -372,8 +386,10 @@ void InputStreamImpl::setupBlockReader(bool temporaryDisableLocalRead) {
                 const char * clientName = filesystem->getClientName();
                 lastReadFromLocal = false;
                 blockReader = shared_ptr<BlockReader>(new RemoteBlockReader(
+                    filesystem,
                     *curBlock, curNode, *peerCache, offset, len,
-                    curBlock->getToken(), clientName, verify, *conf));
+                    curBlock->getToken(), clientName, verify, *conf, lbs->getEncryption(),
+                    aesClient));
             }
 
             break;
@@ -392,10 +408,16 @@ void InputStreamImpl::setupBlockReader(bool temporaryDisableLocalRead) {
                  * disable local block reading
                  */
             } else {
-                LOG(LOG_ERROR,
-                    "cannot setup block reader for Block: %s file %s on Datanode: %s.\n%s\nretry another node",
-                    curBlock->toString().c_str(), path.c_str(),
-                    curNode.formatAddress().c_str(), GetExceptionDetail(e, buffer));
+                if (conf->getEncryptedDatanode() || conf->getSecureDatanode())
+                    LOG(WARNING,
+                        "cannot setup block reader for Block: %s file %s on Datanode: %s retry another node",
+                        curBlock->toString().c_str(), path.c_str(),
+                        curNode.formatAddress().c_str());
+                else
+                    LOG(LOG_ERROR,
+                        "cannot setup block reader for Block: %s file %s on Datanode: %s.\n%s\nretry another node",
+                        curBlock->toString().c_str(), path.c_str(),
+                        curNode.formatAddress().c_str(), GetExceptionDetail(e, buffer));
                 failedNodes.push_back(curNode);
                 std::sort(failedNodes.begin(), failedNodes.end());
             }
@@ -475,7 +497,7 @@ int32_t InputStreamImpl::readOneBlock(char * buf, int32_t size, bool shouldUpdat
         } catch (const HdfsInvalidBlockToken & e) {
             std::string buffer;
             LOG(LOG_ERROR,
-                "InputStreamImpl: failed to read Block: %s file %s, \n%s, retry after updating block informations.",
+                "InputStreamImpl: failed to read Block (stale token): %s file %s, \n%s, retry after updating block informations.",
                 curBlock->toString().c_str(), path.c_str(), GetExceptionDetail(e, buffer));
             return -1;
         } catch (const HdfsIOException & e) {
@@ -484,10 +506,15 @@ int32_t InputStreamImpl::readOneBlock(char * buf, int32_t size, bool shouldUpdat
              * We now update block informations once, and try again.
              */
             if (shouldUpdateMetadataOnFailure) {
-                LOG(LOG_ERROR,
-                    "InputStreamImpl: failed to read Block: %s file %s, \n%s, retry after updating block informations.",
-                    curBlock->toString().c_str(), path.c_str(),
-                    GetExceptionDetail(e, buffer));
+                if (conf->getEncryptedDatanode() || conf->getSecureDatanode())
+                    LOG(WARNING,
+                        "InputStreamImpl: failed to read Block: %s file %s, retry after updating block informations.",
+                        curBlock->toString().c_str(), path.c_str());
+                else
+                    LOG(LOG_ERROR,
+                        "InputStreamImpl: failed to read Block: %s file %s, \n%s, retry after updating block informations.",
+                        curBlock->toString().c_str(), path.c_str(),
+                        GetExceptionDetail(e, buffer));
                 return -1;
             } else {
                 /*
@@ -734,7 +761,14 @@ void InputStreamImpl::seekInternal(int64_t pos) {
     }
 
     try {
-        if (blockReader && pos > cursor && pos < endOfCurBlock) {
+        if (blockReader && pos > cursor && pos < endOfCurBlock &&
+                (pos - cursor) < blockReader->available()) {
+
+            /*
+             * If this seek is to a positive position in the current block, and
+             * this piece of data might already be lying in the TCP buffer, then
+             * just eat up the intervening data.
+             */
             blockReader->skip(pos - cursor);
             cursor = pos;
             return;

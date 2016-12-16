@@ -58,11 +58,17 @@ SessionConfig::SessionConfig(const Config & conf) {
         }, {
             &addDatanode, "output.replace-datanode-on-failure", true
         }, {
+            &addDatanodeBest, "output.replace-datanode-on-failure.best-effort", true
+        },{
             &notRetryAnotherNode, "input.notretry-another-node", false
         }, {
             &useMappedFile, "input.localread.mappedfile", false
         }, {
             &legacyLocalBlockReader, "dfs.client.use.legacy.blockreader.local", false
+        }, {
+            &encryptedDatanode, "dfs.encrypt.data.transfer", false
+        },{
+            &secureDatanode, "dfs.block.access.token.enable", false
         }
     };
     ConfigDefault<int32_t> i32Values[] = {
@@ -126,6 +132,8 @@ SessionConfig::SessionConfig(const Config & conf) {
             &socketCacheExpiry, "dfs.client.socketcache.expiryMsec", 3000, bind(CheckRangeGE<int32_t>, _1, _2, 0)
         }, {
             &socketCacheCapacity, "dfs.client.socketcache.capacity", 16, bind(CheckRangeGE<int32_t>, _1, _2, 0)
+        }, {
+            &cryptoBufferSize, "hadoop.security.crypto.buffer.size", 8192,
         }
     };
     ConfigDefault<int64_t> i64Values [] = {
@@ -134,11 +142,14 @@ SessionConfig::SessionConfig(const Config & conf) {
         }
     };
     ConfigDefault<std::string> strValues [] = {
-        {&defaultUri, "dfs.default.uri", "hdfs://localhost:8020" },
+        {&defaultUri, "dfs.default.uri", "hdfs://localhost:9000" },
         {&rpcAuthMethod, "hadoop.security.authentication", "simple" },
+        {&kmsAuthMethod, "hadoop.kms.authentication.type", "simple" },
+        {&kmsAuthToken, "hadoop.kms.authentication.token", "" },
         {&kerberosCachePath, "hadoop.security.kerberos.ticket.cache.path", "" },
         {&logSeverity, "dfs.client.log.severity", "INFO" },
-        {&domainSocketPath, "dfs.domain.socket.path", ""}
+        {&domainSocketPath, "dfs.domain.socket.path", ""},
+        {&kmsUrl, "dfs.encryption.key.provider.uri", ""}
     };
 
     for (size_t i = 0; i < ARRAYSIZE(boolValues); ++i) {

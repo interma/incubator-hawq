@@ -236,6 +236,16 @@ void OutputStreamImpl::openInternal(shared_ptr<FileSystemInter> fs, const char *
 
     try {
         if (flag & Append) {
+            fileStatus = fs->getFileStatus(this->path.c_str());
+            FileEncryption &info = fileStatus.getEncryption();
+            if (info.getKey().length() > 0) {
+                RpcAuth auth = RpcAuth(fs->getUserInfo(), RpcAuth::ParseMethod(conf->getKmsMethod()));
+                shared_ptr<GetDecryptedKey> getter = shared_ptr <GetDecryptedKey>(GetDecryptedKey::getDecryptor(conf->getKmsUrl(), auth));
+                std::string newkey = getter->getMaterial(info);
+                info.setKey(newkey);
+                aesClient = shared_ptr<AESClient>(new AESClient(newkey, info.getIv(),
+                  newkey, info.getIv(), conf->getCryptoBufferSize()));
+            }
             initAppend();
             LeaseRenewer::GetLeaseRenewer().StartRenew(filesystem);
             return;
@@ -249,6 +259,16 @@ void OutputStreamImpl::openInternal(shared_ptr<FileSystemInter> fs, const char *
     assert((flag & Create) || (flag & Overwrite));
     fs->create(this->path, permission, flag, createParent, this->replication,
                this->blockSize);
+    fileStatus = fs->getFileStatus(this->path.c_str());
+    FileEncryption &info = fileStatus.getEncryption();
+    if (info.getKey().length() > 0) {
+        RpcAuth auth = RpcAuth(fs->getUserInfo(), RpcAuth::ParseMethod(conf->getKmsMethod()));
+        shared_ptr<GetDecryptedKey> getter = shared_ptr <GetDecryptedKey>(GetDecryptedKey::getDecryptor(conf->getKmsUrl(), auth));
+        std::string newkey = getter->getMaterial(info);
+        info.setKey(newkey);
+        aesClient = shared_ptr<AESClient>(new AESClient(newkey, info.getIv(),
+              newkey, info.getIv(), conf->getCryptoBufferSize()));
+    }
     closed = false;
     computePacketChunkSize();
     LeaseRenewer::GetLeaseRenewer().StartRenew(filesystem);
@@ -265,7 +285,6 @@ void OutputStreamImpl::append(const char * buf, int64_t size) {
     if (NULL == buf || size < 0) {
         THROW(InvalidParameter, "Invalid parameter.");
     }
-
     checkStatus();
 
     try {
@@ -276,8 +295,15 @@ void OutputStreamImpl::append(const char * buf, int64_t size) {
     }
 }
 
+
 void OutputStreamImpl::appendInternal(const char * buf, int64_t size) {
     int64_t todo = size;
+
+    std::string encoded;
+    if (size && fileStatus.getEncryption().getKey().length() > 0) {
+        encoded = aesClient->encode(buf, size);
+        buf = encoded.c_str();
+    }
 
     while (todo > 0) {
         int batch = buffer.size() - position;
@@ -356,7 +382,8 @@ void OutputStreamImpl::setupPipeline() {
 #else
     pipeline = shared_ptr<Pipeline>(new PipelineImpl(isAppend, path.c_str(), *conf, filesystem,
                                     CHECKSUM_TYPE_CRC32C, conf->getDefaultChunkSize(), replication,
-                                    currentPacket->getOffsetInBlock(), packets, lastBlock));
+                                    currentPacket->getOffsetInBlock(), packets, lastBlock,
+                                    fileStatus.getEncryption()));
 #endif
     lastSend = steady_clock::now();
     /*

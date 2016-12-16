@@ -28,6 +28,7 @@
 #include "FileSystemStats.h"
 #include "Permission.h"
 #include "XmlConfig.h"
+#include "server/EncryptionKey.h"
 
 #include <vector>
 
@@ -45,6 +46,7 @@ public:
      */
     FileSystem(const Config & conf);
 
+    FileSystem(const Config & conf, const char * effective_user);
     /**
      * Copy construct of FileSystem
      */
@@ -65,6 +67,10 @@ public:
      */
     void connect();
 
+    // TODO
+    std::string effective_user;
+
+
     /**
      * Connect to hdfs
      * @param uri hdfs connection uri, hdfs://host:port
@@ -84,6 +90,8 @@ public:
      * disconnect from hdfs
      */
     void disconnect();
+
+    Internal::EncryptionKey getEncryptionKeys();
 
     /**
      * To get default number of replication.
@@ -241,6 +249,14 @@ public:
      * false if client needs to wait for block recovery.
      */
     bool truncate(const char * src, int64_t size);
+
+     /**
+     * Get a valid kms Token.
+     *
+     * @return Token string
+     * @throws IOException
+     */
+    std::string getKmsToken();
 
     /**
      * Get a valid Delegation Token.

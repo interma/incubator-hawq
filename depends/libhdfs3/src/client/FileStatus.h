@@ -23,6 +23,7 @@
 #define _HDFS_LIBHDFS3_CLIENT_FILESTATUS_H_
 
 #include "Permission.h"
+#include "server/FileEncryption.h"
 
 #include <string>
 
@@ -143,6 +144,10 @@ public:
         return !symlink.empty();
     }
 
+    Internal::FileEncryption& getEncryption() {
+        return encryption;
+   }
+
 private:
     bool isdir;
     int64_t atime;
@@ -155,6 +160,7 @@ private:
     std::string owner;
     std::string path;
     std::string symlink;
+    Internal::FileEncryption encryption;
 };
 
 }
