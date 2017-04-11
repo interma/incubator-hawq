@@ -225,6 +225,7 @@ TEST_F(TestHawqRanger, DenyTest) {
 		runSQLFile(&util, "deny", "succeed", 1);
 		addPolicy(&util, "deny", 1);
 		runSQLFile(&util, "deny", "fail", 1);
+		clearEnv(&util, "deny", 1);
 	}
 }
 
@@ -242,6 +243,8 @@ TEST_F(TestHawqRanger, DenyExcludeTest) {
 		runSQLFile(&util, "denyexclude", "fail", 2);
 		addPolicy(&util, "denyexclude", 2);
 		runSQLFile(&util, "denyexclude", "succeed2", 2);
+		clearEnv(&util, "denyexclude", 2);
+		clearEnv(&util, "deny", 2);
 	}
 }
 
@@ -259,6 +262,8 @@ TEST_F(TestHawqRanger, AllowExcludeTest) {
 
 		addPolicy(&util, "allowexclude", 3);
 		runSQLFile(&util, "allowexclude", "fail", 3);
+		clearEnv(&util, "allowexclude", 3);
+		clearEnv(&util, "allow", 3);
 	}
 }
 
@@ -279,6 +284,8 @@ TEST_F(TestHawqRanger, ResourceExcludeTest) {
 		//add usage-schema to public
 		addPolicy(&util, "allow", 4);
 		runSQLFile(&util, "resourceexclude", "succeed", 4);
+		clearEnv(&util, "resourceexclude", 4);
+		clearEnv(&util, "allow", 4);
 	}
 }
 
@@ -298,6 +305,8 @@ TEST_F(TestHawqRanger, ResourceExcludeStarTest) {
 		//add usage-schema to public
 		addPolicy(&util, "allow", 5);
 		runSQLFile(&util, "resourceexclude", "fail2", 5);
+		clearEnv(&util, "resourceexclude", 5);
+		clearEnv(&util, "allow", 5);
 	}
 }
 
@@ -311,6 +320,7 @@ TEST_F(TestHawqRanger, ResourceIncludeATest) {
 
 		addPolicy(&util, "allow", 6);
 		runSQLFile(&util, "allow", "fail", 6);
+		clearEnv(&util, "allow", 6);
 	}
 }
 
