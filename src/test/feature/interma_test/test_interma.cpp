@@ -29,6 +29,12 @@ class TestInterma : public ::testing::Test {
 public:
 	TestInterma() 
 	{}
+
+	string get_test_schema_name() 
+	{
+		const ::testing::TestInfo *const test_info = ::testing::UnitTest::GetInstance()->current_test_info();
+		return string(test_info->test_case_name()) + "_" + test_info->name();
+	}
 };
 
 void static print_msg(const string &msg)
@@ -62,3 +68,11 @@ TEST_F(TestInterma, P2Test) {
 	sleep(10);
 	print_msg("P2 end");
 }
+
+
+TEST_F(TestInterma, SchemaNameTest) {
+	string data = get_test_schema_name();
+	std::transform(data.begin(), data.end(), data.begin(), ::tolower);
+	print_msg(data);
+}
+

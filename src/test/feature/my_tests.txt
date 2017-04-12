@@ -4,5 +4,6 @@
 
 #SERIAL=TestRangerPolicyHelper.*
 
-PARALLEL=TestInterma.P1Test:TestInterma.P2Test
-SERIAL=TestInterma.S1Test:TestInterma.S2Test
+#PARALLEL=TestInterma.P1Test:TestInterma.P2Test
+#SERIAL=TestInterma.S1Test:TestInterma.S2Test
+SERIAL=TestInterma.SchemaNameTest
