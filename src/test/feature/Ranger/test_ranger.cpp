@@ -371,6 +371,7 @@ TEST_F(TestHawqRanger, PXFHDFSTest) {
 	{
 		std::string db = "hawq_feature_test_db";
 		std::string schema = get_private_schema_name();
+		bool usingDefaultSchema= false;
 		std::string user; 
 
 		// clean hdfs folder
@@ -385,7 +386,7 @@ TEST_F(TestHawqRanger, PXFHDFSTest) {
 		addUser(&util, prefix, idx, false); 
 		user = hawq::test::stringFormat("user%s%d", prefix ,idx); 
 
-		runSQLFile(&util, prefix, "fail", 2, true, false, true); // create writable table
+		runSQLFile(&util, prefix, "fail", 2, usingDefaultSchema, false, true); // create writable table
 		
 		// all needed policies
 		helper.AddSchemaPolicy("pxfpolicy2-1", user, db, schema, {"usage-schema","create"});
@@ -394,8 +395,8 @@ TEST_F(TestHawqRanger, PXFHDFSTest) {
 
 		ret = helper.ActivateAllPoliciesOnRanger();
 		EXPECT_EQ(0,ret);
-		runSQLFile(&util, prefix, "success", 2, true, false, true); // create table
-		runSQLFile(&util, prefix, "success", 3, true, false, true); // insert
+		runSQLFile(&util, prefix, "success", 2, usingDefaultSchema, false, true); // create table
+		runSQLFile(&util, prefix, "success", 3, usingDefaultSchema, false, true); // insert
 		
 		
 		// -- read --
@@ -403,7 +404,7 @@ TEST_F(TestHawqRanger, PXFHDFSTest) {
 		addUser(&util, prefix, idx, false);
 		user = hawq::test::stringFormat("user%s%d", prefix ,idx); 
 			
-		runSQLFile(&util, prefix, "fail", 4, true, false, true); // create readable table
+		runSQLFile(&util, prefix, "fail", 4, usingDefaultSchema, false, true); // create readable table
 
 		helper.Reset();
 		// all needed policies
@@ -413,8 +414,8 @@ TEST_F(TestHawqRanger, PXFHDFSTest) {
 
 		ret = helper.ActivateAllPoliciesOnRanger();
 		EXPECT_EQ(0,ret);
-		runSQLFile(&util, prefix, "success", 4, true, false, true); // create table
-		runSQLFile(&util, prefix, "success", 5, true, false, true); // select
+		runSQLFile(&util, prefix, "success", 4, usingDefaultSchema, false, true); // create table
+		runSQLFile(&util, prefix, "success", 5, usingDefaultSchema, false, true); // select
 
 		//delete user 
 		delUser(&util, prefix, 2); 
@@ -446,6 +447,7 @@ TEST_F(TestHawqRanger, PXFHiveTest) {
 	{
 		std::string db = "hawq_feature_test_db";
 		std::string schema = get_private_schema_name();
+		bool usingDefaultSchema= false;
 		std::string user; 
 		
 		// create hive table
@@ -459,7 +461,7 @@ TEST_F(TestHawqRanger, PXFHiveTest) {
 		addUser(&util, prefix, idx, false);
 		user = hawq::test::stringFormat("user%s%d", prefix ,idx); 
 			
-		runSQLFile(&util, prefix, "fail", 6, true, false, true); // create readable table
+		runSQLFile(&util, prefix, "fail", 6, usingDefaultSchema, false, true); // create readable table
 
 		helper.Reset();
 		// all needed policies
@@ -469,8 +471,8 @@ TEST_F(TestHawqRanger, PXFHiveTest) {
 
 		ret = helper.ActivateAllPoliciesOnRanger();
 		EXPECT_EQ(0,ret);
-		runSQLFile(&util, prefix, "success", 6, true, false, true); // create table
-		runSQLFile(&util, prefix, "success", 7, true, false, true); // select
+		runSQLFile(&util, prefix, "success", 6, usingDefaultSchema, false, true); // create table
+		runSQLFile(&util, prefix, "success", 7, usingDefaultSchema, false, true); // select
 
 		//delete user 
 		delUser(&util, prefix, idx); 
@@ -498,6 +500,7 @@ TEST_F(TestHawqRanger, PXFHBaseTest) {
 	{
 		std::string db = "hawq_feature_test_db";
 		std::string schema = get_private_schema_name();
+		bool usingDefaultSchema= false;
 		std::string user; 
 		
 		// create hbase table
@@ -510,7 +513,7 @@ TEST_F(TestHawqRanger, PXFHBaseTest) {
 		addUser(&util, prefix, idx, false);
 		user = hawq::test::stringFormat("user%s%d", prefix ,idx); 
 			
-		runSQLFile(&util, prefix, "fail", 8, true, false, true); // create readable table
+		runSQLFile(&util, prefix, "fail", 8, usingDefaultSchema, false, true); // create readable table
 
 		helper.Reset();
 		// all needed policies
@@ -520,8 +523,8 @@ TEST_F(TestHawqRanger, PXFHBaseTest) {
 
 		ret = helper.ActivateAllPoliciesOnRanger();
 		EXPECT_EQ(0,ret);
-		runSQLFile(&util, prefix, "success", 8, true, false, true); // create table
-		runSQLFile(&util, prefix, "success", 9, true, false, true); // select
+		runSQLFile(&util, prefix, "success", 8, usingDefaultSchema, false, true); // create table
+		runSQLFile(&util, prefix, "success", 9, usingDefaultSchema, false, true); // select
 
 		//delete user 
 		delUser(&util, prefix, idx); 
