@@ -179,39 +179,31 @@ static void clear_env(SQLUtility &util, int sql_id, string rootPath, string rang
 
 TEST_F(TestHawqRanger, FallbackTest) {
 	SQLUtility util;
+	PolicyHelper helper(util.getTestRootPath(), rangerHost);
 
 	if (util.getGUCValue("hawq_acl_type") == "ranger")
 	{
-		string rootPath(util.getTestRootPath());
-		string rangerHost = RANGER_HOST;
-		string initfile = "Ranger/sql/init_file";
-		string cmd;
-		int FallbackCase = 10000;
-		int i = FallbackCase;
+		int idx = 10000;
+		int ret = 0;
+		const char * prefix = "manual";
+		std::string db = "hawq_feature_test_db";
+		std::string schema = get_private_schema_name();
+		std::string user = hawq::test::stringFormat("user%s%d", prefix, idx); 
 
-		// clear environment
-		clear_env(util, i, rootPath, rangerHost);
+		addUser(&util, prefix, idx, false); 
 
-		// create user_num
-		std::string normalusername = hawq::test::stringFormat("usertest%d", i);;
-		std::string superusername = hawq::test::stringFormat("usersuper%d", i);;
-		util.execute(hawq::test::stringFormat("create role %s with login createdb;", normalusername.c_str()),true);
-		util.execute(hawq::test::stringFormat("create role %s with login createdb superuser;", superusername.c_str()),true);
-		// add user
-		cmd = hawq::test::stringFormat("python %s/Ranger/rangeruser.py -h %s -u %s,%s", rootPath.c_str(),
-			rangerHost.c_str(), normalusername.c_str(), superusername.c_str());
-		Command::getCommandStatus(cmd);
-		// add policy
-		cmd = hawq::test::stringFormat("python %s/Ranger/rangerpolicy.py -h %s -a %s/Ranger/policy/%d/%d.json", rootPath.c_str(), rangerHost.c_str(), rootPath.c_str(), i, 1);
-		Command::getCommandStatus(cmd);
-		sleep(60);
+		// all needed policies
+		helper.AddSchemaPolicy("policy10000-1", user, db, schema, {"usage-schema"});
 
-		// run sql test
-		string normal_sqlfile = hawq::test::stringFormat("Ranger/sql/manual/%d.sql", i);
-		string normal_ansfile_success = hawq::test::stringFormat("Ranger/ans/normal%d_success.ans", i);
-		util.execSQLFile(normal_sqlfile, normal_ansfile_success, initfile, true, true);
+		ret = helper.ActivateAllPoliciesOnRanger();
+		EXPECT_EQ(0,ret);
+		runSQLFile(&util, prefix, "success", idx, false, true, true); 
+		
+		//delete user 
+		delUser(&util, prefix, idx); 
 
-		clear_env(util, i, rootPath, rangerHost);
+		//delete policy
+		helper.DeletePolicyOnRanger("pxfpolicy10000-1");
     }
 }
 
@@ -378,6 +370,7 @@ TEST_F(TestHawqRanger, PXFHDFSTest) {
 	if (util.getGUCValue("hawq_acl_type") == "ranger")
 	{
 		std::string db = "hawq_feature_test_db";
+		std::string schema = get_private_schema_name();
 		std::string user; 
 
 		// clean hdfs folder
@@ -395,9 +388,9 @@ TEST_F(TestHawqRanger, PXFHDFSTest) {
 		runSQLFile(&util, prefix, "fail", 2, true, false, true); // create writable table
 		
 		// all needed policies
-		helper.AddSchemaPolicy("pxfpolicy2-1", user, db, "public", {"usage-schema","create"});
+		helper.AddSchemaPolicy("pxfpolicy2-1", user, db, schema, {"usage-schema","create"});
 		helper.AddProtocolPolicy("pxfpolicy2-2", user, "pxf", {"insert"});
-		helper.AddTablePolicy("pxfpolicy2-3", user, db, "public", "pxf_hdfs_writabletbl_1", {"insert"});
+		helper.AddTablePolicy("pxfpolicy2-3", user, db, schema, "pxf_hdfs_writabletbl_1", {"insert"});
 
 		ret = helper.ActivateAllPoliciesOnRanger();
 		EXPECT_EQ(0,ret);
@@ -414,9 +407,9 @@ TEST_F(TestHawqRanger, PXFHDFSTest) {
 
 		helper.Reset();
 		// all needed policies
-		helper.AddSchemaPolicy("pxfpolicy3-1", user, db, "public", {"usage-schema","create"});
+		helper.AddSchemaPolicy("pxfpolicy3-1", user, db, schema, {"usage-schema","create"});
 		helper.AddProtocolPolicy("pxfpolicy3-2", user, "pxf", {"select"});
-		helper.AddTablePolicy("pxfpolicy3-3", user, db, "public", "pxf_hdfs_textsimple_r1", {"select"});
+		helper.AddTablePolicy("pxfpolicy3-3", user, db, schema, "pxf_hdfs_textsimple_r1", {"select"});
 
 		ret = helper.ActivateAllPoliciesOnRanger();
 		EXPECT_EQ(0,ret);
@@ -452,6 +445,7 @@ TEST_F(TestHawqRanger, PXFHiveTest) {
 	if (util.getGUCValue("hawq_acl_type") == "ranger")
 	{
 		std::string db = "hawq_feature_test_db";
+		std::string schema = get_private_schema_name();
 		std::string user; 
 		
 		// create hive table
@@ -469,9 +463,9 @@ TEST_F(TestHawqRanger, PXFHiveTest) {
 
 		helper.Reset();
 		// all needed policies
-		helper.AddSchemaPolicy("pxfpolicy4-1", user, db, "public", {"usage-schema","create"});
+		helper.AddSchemaPolicy("pxfpolicy4-1", user, db, schema, {"usage-schema","create"});
 		helper.AddProtocolPolicy("pxfpolicy4-2", user, "pxf", {"select"});
-		helper.AddTablePolicy("pxfpolicy4-3", user, db, "public", "testhive_ext", {"select"});
+		helper.AddTablePolicy("pxfpolicy4-3", user, db, schema, "testhive_ext", {"select"});
 
 		ret = helper.ActivateAllPoliciesOnRanger();
 		EXPECT_EQ(0,ret);
@@ -503,6 +497,7 @@ TEST_F(TestHawqRanger, PXFHBaseTest) {
 	if (util.getGUCValue("hawq_acl_type") == "ranger")
 	{
 		std::string db = "hawq_feature_test_db";
+		std::string schema = get_private_schema_name();
 		std::string user; 
 		
 		// create hbase table
@@ -519,9 +514,9 @@ TEST_F(TestHawqRanger, PXFHBaseTest) {
 
 		helper.Reset();
 		// all needed policies
-		helper.AddSchemaPolicy("pxfpolicy5-1", user, db, "public", {"usage-schema","create"});
+		helper.AddSchemaPolicy("pxfpolicy5-1", user, db, schema, {"usage-schema","create"});
 		helper.AddProtocolPolicy("pxfpolicy5-2", user, "pxf", {"select"});
-		helper.AddTablePolicy("pxfpolicy5-3", user, db, "public", "test_hbase", {"select"});
+		helper.AddTablePolicy("pxfpolicy5-3", user, db, schema, "test_hbase", {"select"});
 
 		ret = helper.ActivateAllPoliciesOnRanger();
 		EXPECT_EQ(0,ret);
@@ -691,4 +686,16 @@ void TestHawqRanger::addPolicy(hawq::test::SQLUtility* util, std::string case_na
 		}
 	}
 	sleep(60);
+}
+
+/**
+ * get the private schema name based by current test
+ * example: testhawqranger_xxxtest 	
+ */ 
+std::string TestHawqRanger::get_private_schema_name()
+{
+	const ::testing::TestInfo *const test_info = ::testing::UnitTest::GetInstance()->current_test_info();
+	string data = string(test_info->test_case_name()) + "_" + test_info->name();
+	std::transform(data.begin(), data.end(), data.begin(), ::tolower);
+	return data;
 }
