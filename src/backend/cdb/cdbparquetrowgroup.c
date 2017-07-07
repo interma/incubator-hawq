@@ -55,7 +55,7 @@ ParquetRowGroupReader_Init(
 }
 
 /**
- * Get the information of row group, including column chunk information
+ * Get the information of row group, including column chunk information @interma read stats and do skip
  */
 bool
 ParquetRowGroupReader_GetRowGroupInfo(
@@ -241,7 +241,7 @@ ParquetRowGroupReader_ScanNextTuple(
 			&rowGroupReader->columnReaders[colReaderIndex];
 		int hawqTypeID = tupDesc->attrs[i]->atttypid;
 
-		if(hawqAttrToParquetColNum[i] == 1)
+		if(hawqAttrToParquetColNum[i] == 1) // i=2,3
 		{
 			ParquetColumnReader_readValue(nextReader, &values[i], &nulls[i], hawqTypeID);
 		}

@@ -26,6 +26,7 @@
 
 #include "postgres.h"
 #include <fcntl.h>
+#include <tcop/tcopprot.h>
 #include "access/tupdesc.h"
 #include "access/memtup.h"
 #include "access/filesplit.h"
@@ -53,7 +54,7 @@ static void initscan(ParquetScanDesc scan);
 static bool SetNextFileSegForRead(ParquetScanDesc scan);
 
 /*get next row group to read*/
-static bool getNextRowGroup(ParquetScanDesc scan);
+static bool getNextRowGroup(ParquetScanDesc scan, int64_t *sum_value);
 
 /*close current scanning file segments*/
 static void CloseScannedFileSeg(ParquetScanDesc scan);
@@ -276,6 +277,7 @@ void parquet_getnext(ParquetScanDesc scan, ScanDirection direction,
 
 	for(;;)
 	{
+        int64_t sum_value = 0;
 		if(scan->bufferDone)
 		{
 			/*
@@ -283,7 +285,7 @@ void parquet_getnext(ParquetScanDesc scan, ScanDirection direction,
 			 * successfully get a block to process, or finished reading
 			 * all the data (all 'segment' files) for this relation.
 			 */
-			while(!getNextRowGroup(scan))
+			while(!getNextRowGroup(scan, &sum_value))
 			{
 				/* have we read all this relation's data. done! */
 				if(scan->pqs_done_all_splits)
@@ -317,6 +319,12 @@ void parquet_getnext(ParquetScanDesc scan, ScanDirection direction,
 
 			slot_set_ctid(slot, &(scan->cdb_fake_ctid));
 
+            if (sum_value > 0) {
+                slot->PRIVATE_tts_values[2] = sum_value;
+                //skip current rg
+                scan->bufferDone = true;
+            }
+
 			return;
 		}
 		/* no more items in the row group, get new buffer */
@@ -327,7 +335,7 @@ void parquet_getnext(ParquetScanDesc scan, ScanDirection direction,
 /*
  * You can think of this scan routine as get next "executor" Parquet rowGroup.
  */
-static bool getNextRowGroup(ParquetScanDesc scan)
+static bool getNextRowGroup(ParquetScanDesc scan, int64_t *sum_value)
 {
 	if (scan->pqs_need_new_split)
 	{
@@ -350,7 +358,61 @@ static bool getNextRowGroup(ParquetScanDesc scan)
 												scan->pqs_tupDesc,
 												scan->hawqAttrToParquetColChunks,
 												scan->toCloseFile)) {
-		ParquetRowGroupReader_GetContents(&scan->rowGroupReader);
+
+        if (enable_parquet_stats && strnstr(debug_query_string, "from orders_demo where", 1024) != NULL) {
+            char sfield[16];
+            char wfield[16];
+            char op[2];
+            int value;
+
+            int ret = sscanf(debug_query_string, "select %s from orders_demo where %s %s %d",
+                             sfield, wfield, op, &value);
+            if (ret > 0) {
+
+                //Q1:
+                // select price from orders where ts = 123
+                // select sum(price) from orders2 where ts = 1499143802;
+                //
+                // skip
+                if (strcmp(wfield, "ts")==0 && strcmp(op, "=")==0) {
+                    const Statistics_4C * ts_stats = &(scan->rowGroupReader.columnReaders[1].columnMetadata->stats);
+                    if (ts_stats->is_existed) {
+                        if (value > ts_stats->max || value < ts_stats->min) {
+                            // skip current row group!
+                            scan->storageRead.rowGroupProcessedCount++;
+                            return getNextRowGroup(scan, sum_value);
+                        }
+                    }
+                }
+
+                //Q2:select sum(price) from orders where ts > 123 sum
+                if (strcmp(sfield, "sum(price)")==0 && strcmp(wfield, "ts")==0 && strcmp(op, ">")==0) {
+                    const Statistics_4C * price_stats = &(scan->rowGroupReader.columnReaders[0].columnMetadata->stats);
+                    const Statistics_4C * ts_stats = &(scan->rowGroupReader.columnReaders[1].columnMetadata->stats);
+
+                    //skip
+                    if (ts_stats->is_existed) {
+                        if (value > ts_stats->max) {
+                            // skip current row group!
+                            scan->storageRead.rowGroupProcessedCount++;
+                            return getNextRowGroup(scan, sum_value);
+                        }
+                    }
+
+                    //use sum
+                    if (ts_stats->is_existed && price_stats->is_existed) {
+                        if (value < ts_stats->min) {
+                            *sum_value = price_stats->null_count;
+                        }
+                    }
+
+                }
+            }
+        }
+
+
+
+        ParquetRowGroupReader_GetContents(&scan->rowGroupReader);
 	}
 	else {
 		/* current split is finished */
