@@ -193,6 +193,27 @@ void OutputStreamImpl::initAppend() {
     computePacketChunkSize();
 }
 
+
+static std::string calculateIV(const std::string& initIV, unsigned long counter) {
+
+  char IV[initIV.length()];
+
+  int i = initIV.length(); // IV length
+  int j = 0; // counter bytes index
+  unsigned int sum = 0;
+  while (i-- > 0) {
+    // (sum >>> Byte.SIZE) is the carry for addition
+    sum = (initIV[i] & 0xff) + (sum >> 8);
+    if (j++ < 8) { // Big-endian, and long is 8 bytes length
+      sum += (char) counter & 0xff;
+      counter >>= 8;
+    }
+    IV[i] = (char) sum;
+  }
+
+  return std::string(IV, initIV.length());
+}
+
 void OutputStreamImpl::openInternal(shared_ptr<FileSystemInter> fs, const char * path,
                                     int flag, const Permission & permission, bool createParent,
                                     int replication, int64_t blockSize) {
@@ -242,7 +263,14 @@ void OutputStreamImpl::openInternal(shared_ptr<FileSystemInter> fs, const char *
                 RpcAuth auth = RpcAuth(fs->getUserInfo(), RpcAuth::ParseMethod(conf->getKmsMethod()));
                 shared_ptr<GetDecryptedKey> getter = shared_ptr <GetDecryptedKey>(GetDecryptedKey::getDecryptor(conf->getKmsUrl(), auth));
                 std::string newkey = getter->getMaterial(info);
+
+
+                //todo interma
+                //updateEncryptor();
+
                 info.setKey(newkey);
+                info.setIv(calculateIV(info.getIv(), 1));
+
                 aesClient = shared_ptr<AESClient>(new AESClient(newkey, info.getIv(),
                   newkey, info.getIv(), conf->getCryptoBufferSize()));
             }
@@ -266,6 +294,7 @@ void OutputStreamImpl::openInternal(shared_ptr<FileSystemInter> fs, const char *
         shared_ptr<GetDecryptedKey> getter = shared_ptr <GetDecryptedKey>(GetDecryptedKey::getDecryptor(conf->getKmsUrl(), auth));
         std::string newkey = getter->getMaterial(info);
         info.setKey(newkey);
+        //info.setIv(calculateIV(info.getIv(), 1));
         aesClient = shared_ptr<AESClient>(new AESClient(newkey, info.getIv(),
               newkey, info.getIv(), conf->getCryptoBufferSize()));
     }

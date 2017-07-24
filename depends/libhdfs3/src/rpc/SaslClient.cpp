@@ -41,6 +41,7 @@ using boost::property_tree::write_json;
 namespace Hdfs {
 namespace Internal {
 
+//todo @interma
 std::string calculateIV(std::string initIV, long counter) {
     std::string IV;
     IV.resize(initIV.length());

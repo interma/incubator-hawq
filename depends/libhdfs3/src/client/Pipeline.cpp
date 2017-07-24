@@ -619,7 +619,7 @@ void PipelineImpl::createBlockOutputStream(const Token & token, int64_t gs, bool
                                           nodes[0].formatAddress(),
                                           config.getEncryptedDatanode(),
                                           config.getSecureDatanode(),
-                                          key, config.getCryptoBufferSize()));
+                                          key, config.getCryptoBufferSize())); //TODO @interma key
         sender->writeBlock(*lastBlock, token, clientName.c_str(), targets,
                           (recovery ? (stage | 0x1) : stage), nodes.size(),
                           lastBlock->getNumBytes(), bytesSent, gs, checksumType, chunkSize);
