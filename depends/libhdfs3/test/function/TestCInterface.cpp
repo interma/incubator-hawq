@@ -2048,11 +2048,22 @@ TEST(TestCInterfaceTDE, TestReadWithTDE_Basic_Success) {
 	
 	//case2: read after seek
 	
-	//case3: mulit read
+	//case3: multi read
 	
 	//clean up
 }
 
 TEST(TestCInterfaceTDE, TestReadWithTDE_Advanced_Success) {
+	//create a big file
+	
+	//case4: skip block size(128M) read
+	
+	//case5: skip package size(64k) read
+	
+	//case6: read block intervals
+
+	//case7: read read seek(forward) seek(backward) read
+	
+	//clean up
 }
 
