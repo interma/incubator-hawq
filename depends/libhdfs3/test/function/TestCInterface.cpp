@@ -1903,3 +1903,156 @@ TEST_F(TestCInterface, TestConcurrentWrite_Failure) {
     int retval = hdfsCloseFile(fs, fout1);
     ASSERT_TRUE(retval == 0);
 }
+
+//interma add tests
+TEST(TestCInterfaceTDE, TestInterma) {
+    hdfsFS fs = NULL;
+    setenv("LIBHDFS3_CONF", "function-test.xml", 1);
+    struct hdfsBuilder * bld = hdfsNewBuilder();
+    assert(bld != NULL);
+    hdfsBuilderSetNameNode(bld, "default");
+    fs = hdfsBuilderConnect(bld);
+    ASSERT_TRUE(fs != NULL);
+	
+	//for attach
+	char begin_buf[128];
+	scanf("%s", begin_buf);
+
+	//read a big offset to trace block
+    const char *file_path = "/big_file"; //150M
+    hdfsFile fin = hdfsOpenFile(fs, file_path, O_RDONLY, 0, 0, 0);
+	char buf[33];
+	int rc = 0;
+	int offset = 0;
+
+	offset = 1024*1024*64-1000; 
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, 32);
+	buf[32] = 0;
+	std::cout<<rc<<"\t"<<buf<<std::endl;
+	
+	offset = 1024*1024*64-4; 
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, 32);
+	buf[32] = 0;
+	std::cout<<rc<<"\t"<<buf<<std::endl;
+	
+	offset = 1024*1024*128-4; 
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, 32);
+	buf[32] = 0;
+	std::cout<<rc<<"\t"<<buf<<std::endl;
+
+	//output(block size is 128Mb)
+	//both of local and remote
+	//32 32 4
+	
+	char big_buf[65*1024];
+	offset = 0+3; 
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, big_buf, sizeof(big_buf));
+	buf[32] = 0;
+	std::cout<<rc<<"\t"<<buf<<std::endl;
+
+	//output 
+	//remote: 65533(package size=>65536-3)
+	//local: 66560 (65*1024)
+
+
+    int retval = hdfsCloseFile(fs, fin);
+
+}
+
+//only for debug
+TEST(TestCInterfaceTDE, TestInterma2) {
+	//for attach
+	char begin_buf[128];
+	scanf("%s\n", begin_buf);
+	scanf("%s\n", begin_buf);
+
+    hdfsFS fs = NULL;
+    setenv("LIBHDFS3_CONF", "function-test.xml", 1);
+    struct hdfsBuilder * bld = hdfsNewBuilder();
+    assert(bld != NULL);
+    hdfsBuilderSetNameNode(bld, "default");
+    fs = hdfsBuilderConnect(bld);
+    ASSERT_TRUE(fs != NULL);
+
+	//read a big offset to trace block
+    const char *file_path = "/big_file"; //150M
+    hdfsFile fin = hdfsOpenFile(fs, file_path, O_RDONLY, 0, 0, 0);
+	char buf[33];
+	int rc = 0;
+	int offset = 0;
+	int retval = 0;
+
+	offset = 128*1024*1024+1024*64*2+3; 
+	//pendingAhead=3
+	//cursor=131075(1024*64*2+3) block offset
+	//
+	retval = hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, sizeof(buf));
+	buf[32] = 0;
+	std::cout<<rc<<"\t"<<buf<<std::endl;
+
+	retval = hdfsCloseFile(fs, fin);
+	
+	scanf("%s\n", begin_buf);
+}
+
+
+//test multi-append again
+TEST(TestCInterfaceTDE, TestInterma_AppendMultiTimes_Success) {
+    hdfsFS fs = NULL;
+    hdfsEncryptionZoneInfo * enInfo = NULL;
+    setenv("LIBHDFS3_CONF", "function-test.xml", 1);
+    struct hdfsBuilder * bld = hdfsNewBuilder();
+    assert(bld != NULL);
+    hdfsBuilderSetNameNode(bld, "default");
+    fs = hdfsBuilderConnect(bld);
+    ASSERT_TRUE(fs != NULL);
+
+    //creake iey and encryption zone
+    system("hadoop fs -rmr /TDE");
+    system("hadoop key delete keytde4append -f");
+    system("hadoop key create keytde4append");
+    system("hadoop fs -mkdir /TDE");
+    ASSERT_EQ(0, hdfsCreateEncryptionZone(fs, "/TDE", "keytde4append"));
+    enInfo = hdfsGetEZForPath(fs, "/TDE");
+    ASSERT_TRUE(enInfo != NULL);
+    EXPECT_TRUE(enInfo->mKeyName != NULL);
+    hdfsFreeEncryptionZoneInfo(enInfo, 1);
+
+    hdfsFile out;
+
+    //case3: multi-append
+    const char *tdefile3 = "/TDE/multi_append";
+    char out_data3[] = "0123456789abcdef01234";
+    ASSERT_TRUE(CreateFile(fs, tdefile3, 0, 0));
+    out = hdfsOpenFile(fs, tdefile3, O_WRONLY | O_APPEND, 0, 0, 0);
+    hdfsWrite(fs, out, out_data3, 5);
+    hdfsWrite(fs, out, out_data3+5, 15);
+	hdfsCloseFile(fs, out);
+
+    ASSERT_EQ(hdfsDisconnect(fs), 0);
+    hdfsFreeBuilder(bld);
+}
+
+//all TDE read cases
+TEST(TestCInterfaceTDE, TestReadWithTDE_Basic_Success) {
+	//create a normal file
+	
+	//put file to TDE encryption zone
+	
+	//case1: read from beginning
+	
+	//case2: read after seek
+	
+	//case3: mulit read
+	
+	//clean up
+}
+
+TEST(TestCInterfaceTDE, TestReadWithTDE_Advanced_Success) {
+}
+

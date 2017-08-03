@@ -627,6 +627,10 @@ int32_t InputStreamImpl::readInternal(char * buf, int32_t size) {
                 continue;
             }
 
+            //TODO @interma or here
+            //cursor is offset
+            //retval is actual read count
+
             return retval;
         } while (true);
     } catch (const HdfsCanceled & e) {

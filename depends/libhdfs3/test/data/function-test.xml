@@ -2,7 +2,7 @@
 
 	<property>
 		<name>dfs.default.uri</name>
-		<value>hdfs://localhost:8020</value>
+		<value>hdfs://localhost:9000</value>
 	</property>
 
 	<property>
@@ -17,7 +17,7 @@
 
 	<property>
 		<name>dfs.default.replica</name>
-		<value>3</value>
+		<value>1</value>
 	</property>
 
 	<property>
@@ -27,7 +27,7 @@
 
 	<property>
 		<name>dfs.client.read.shortcircuit</name>
-		<value>true</value>
+		<value>false</value>
 	</property>
 
 	<property>

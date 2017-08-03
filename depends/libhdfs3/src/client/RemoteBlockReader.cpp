@@ -231,6 +231,9 @@ void RemoteBlockReader::readNextPacket() {
             verifyChecksum(chunks);
         }
 
+        //TODO @interma decrypt here
+        //NO!
+
         /*
          * skip checksum
          */
