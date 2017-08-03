@@ -2038,32 +2038,166 @@ TEST(TestCInterfaceTDE, TestInterma_AppendMultiTimes_Success) {
     hdfsFreeBuilder(bld);
 }
 
-//all TDE read cases
+
+/*all TDE read cases*/
+
+//helper function
+static void generate_file(const char *file_path, int file_size) {
+	char buffer[1024];
+	Hdfs::FillBuffer(buffer, sizeof(buffer), 0);
+	
+	int todo = file_size;
+	FILE *f = fopen(file_path, "w");
+	assert(f != NULL);
+	while (todo > 0) {
+		int batch = file_size;
+		if (batch > sizeof(buffer))
+			batch = sizeof(buffer);
+		int rc = fwrite(buffer, 1, batch, f);
+		//assert(rc == batch);
+		todo -= rc;
+	}
+	fclose(f);
+}
+
+int diff_buf2filecontents(const char *file_path, const char *buf, int offset, int len) {
+	char *local_buf = (char *)malloc(len);
+
+	FILE *f = fopen(file_path, "r");
+	assert(f != NULL);
+	fseek(f, offset, SEEK_SET);
+
+	int todo = len;
+	int off = 0;
+	while (todo > 0) {
+		int rc = fread(local_buf+off, 1, todo, f);
+		todo -= rc;
+		off += rc;
+	}
+	fclose(f);
+	
+	int ret = strncmp(buf, local_buf, len);
+	free(local_buf);
+	return ret;
+}
+
+
 TEST(TestCInterfaceTDE, TestReadWithTDE_Basic_Success) {
+    hdfsFS fs = NULL;
+    setenv("LIBHDFS3_CONF", "function-test.xml", 1);
+    struct hdfsBuilder * bld = hdfsNewBuilder();
+    assert(bld != NULL);
+    hdfsBuilderSetNameNode(bld, "default");
+    fs = hdfsBuilderConnect(bld);
+    ASSERT_TRUE(fs != NULL);
+
 	//create a normal file
+	char cmd[128];
+	const char *file_name = "tde_read_file";
+	int file_size = 1024;
+	generate_file(file_name, file_size);
 	
-	//put file to TDE encryption zone
+	//TODO put file to TDE encryption zone
+	sprintf(cmd, "hdfs dfs -put %s /", file_name);
+    system(cmd);
 	
+	int offset = 0;
+	int rc = 0;
+	char buf[1024];
+	int to_read = 5;
+	char file_path[128];
+	sprintf(file_path, "/%s", file_name);
+    hdfsFile fin = hdfsOpenFile(fs, file_path, O_RDONLY, 0, 0, 0);
+
 	//case1: read from beginning
-	
+	offset = 0;
+	rc = hdfsRead(fs, fin, buf, to_read);
+	ASSERT_TRUE( diff_buf2filecontents(file_name, buf, offset, rc) == 0 );
+
 	//case2: read after seek
-	
+	offset = 123;
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, to_read);
+	ASSERT_TRUE( diff_buf2filecontents(file_name, buf, offset, rc) == 0 );
+
 	//case3: multi read
+	offset = 456;
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, to_read);
+	int rc2 = hdfsRead(fs, fin, buf+rc, to_read);
+	ASSERT_TRUE( diff_buf2filecontents(file_name, buf, offset, rc+rc2) == 0 );
 	
 	//clean up
+    int retval = hdfsCloseFile(fs, fin);
+    ASSERT_TRUE(retval == 0);
+	sprintf(cmd, "hdfs dfs -rm /%s", file_name);
+    system(cmd);
 }
 
 TEST(TestCInterfaceTDE, TestReadWithTDE_Advanced_Success) {
+    hdfsFS fs = NULL;
+    setenv("LIBHDFS3_CONF", "function-test.xml", 1);
+    struct hdfsBuilder * bld = hdfsNewBuilder();
+    assert(bld != NULL);
+    hdfsBuilderSetNameNode(bld, "default");
+    fs = hdfsBuilderConnect(bld);
+    ASSERT_TRUE(fs != NULL);
+
 	//create a big file
+	char cmd[128];
+	const char *file_name = "tde_read_bigfile";
+	int file_size = 150*1024*1024; //150M
+	generate_file(file_name, file_size);
 	
+	//TODO put file to TDE encryption zone
+	sprintf(cmd, "hdfs dfs -put %s /", file_name);
+    system(cmd);
+	
+	int offset = 0;
+	int rc = 0;
+	char *buf = (char *)malloc(8*1024*1024); //8M
+	int to_read = 5;
+	char file_path[128];
+	sprintf(file_path, "/%s", file_name);
+    hdfsFile fin = hdfsOpenFile(fs, file_path, O_RDONLY, 0, 0, 0);
 	//case4: skip block size(128M) read
+	offset = 128*1024*1024+12345;
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, to_read);
+	ASSERT_TRUE( diff_buf2filecontents(file_name, buf, offset, rc) == 0 );
 	
 	//case5: skip package size(64k) read
+	offset = 64*1024*2+1234;
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, to_read);
+	ASSERT_TRUE( diff_buf2filecontents(file_name, buf, offset, rc) == 0 );
 	
 	//case6: read block intervals
-
-	//case7: read read seek(forward) seek(backward) read
+	offset = 128*1024*1024-123;
+	to_read = 128;
+	hdfsSeek(fs, fin, offset);
+	rc = hdfsRead(fs, fin, buf, to_read);
+	ASSERT_TRUE( rc == 123 ); //only in remote read
+	ASSERT_TRUE( diff_buf2filecontents(file_name, buf, offset, rc) == 0 );
 	
+	//case7: read more bytes
+	offset = 5678;
+	to_read = 5*1024*1024+4567; //5M
+	int off = 0;
+	hdfsSeek(fs, fin, offset);
+	while (to_read > 0) {
+		rc = hdfsRead(fs, fin, buf+off, to_read);
+		std::cout<<"loop read bytes:"<<rc<<std::endl;
+		to_read -= rc;
+		off += rc;
+	}
+	ASSERT_TRUE( diff_buf2filecontents(file_name, buf, offset, rc) == 0 );
+
 	//clean up
+    int retval = hdfsCloseFile(fs, fin);
+    ASSERT_TRUE(retval == 0);
+	sprintf(cmd, "hdfs dfs -rm /%s", file_name);
+    system(cmd);
+	free(buf);
 }
 
