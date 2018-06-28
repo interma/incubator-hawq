@@ -40,7 +40,7 @@ all: $(DEFAULTTARGET)
 
 $(DEFAULTTARGET):
 ifdef MAVEN
-	$(MAVEN) package -DskipTests
+	$(MAVEN) package -DskipTests -Dhttps.protocols=TLSv1.2
 else
 	@$(missing) mvn $< $@
 endif
