@@ -1,5 +1,7 @@
 ![HAWQ](http://hawq.incubator.apache.org/images/logo-hawq.png)
 
+this is interma test repo
+
 ---
 
 |CI Process|Status|
